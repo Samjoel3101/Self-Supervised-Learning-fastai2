@@ -3,6 +3,7 @@
 __all__ = ["index", "modules", "custom_doc_links", "git_url"]
 
 index = {"upstream_splitter": "01_learn.ipynb",
+         "simclr_splitter": "01_learn.ipynb",
          "SSLLearner": "01_learn.ipynb",
          "DotProduct": "02_loss.ipynb",
          "NTXentLoss": "02_loss.ipynb",
