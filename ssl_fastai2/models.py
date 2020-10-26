@@ -2,7 +2,7 @@
 
 __all__ = ['CGDResNet', 'arch_map', 'rep_resnet', 'L2Norm', 'lin_layer', 'BatchDropBlock', 'RepresentationHead',
            'create_bottleneck', 'SSLModel', 'ImageRepEncoder', 'SIMClrHead', 'cgd_encoder', 'available_architectures',
-           'SIMClrModel']
+           'SIMClrModel', 'SPoC', 'GeM', 'cgd_descriptors', 'cgd_config']
 
 # Cell
 from .imports import *
@@ -212,3 +212,41 @@ def cgd_encoder(arch:str, pretrained = True, **kwargs):
 # Cell
 def SIMClrModel(encoder, rep_dim):
   return SSLModel(encoder, global_head = SIMClrHead(rep_dim),use_bottleneck = False)
+
+# Cell
+class SPoC(nn.Module):
+  def forward(self, x):
+    return torch.sum(x, dim = [-2, -1]).view(x.shape[0], x.shape[1], 1, 1)
+
+# Cell
+class GeM(nn.Module):
+  def __init__(self, p = 1., learnable = False):
+    super().__init__()
+    if learnable:
+      self.p = nn.Parameter(torch.tensor([p]))
+    else:
+      self.p = p
+
+  def forward(self, x):
+    return (x.pow(self.p).mean(dim = [-2, -1])).pow(1/self.p).view(x.shape[0], x.shape[1], 1, 1)
+
+# Cell
+cgd_config = {'S': SPoC, 'G': GeM, 'M': nn.AdaptiveMaxPool2d}
+def cgd_descriptors(rep_dim, types = ['S', 'G', 'M'], general_max_pool_learnable = False,
+                    general_max_pooling_p = 1., head_kwargs = {'use_conv_reduction':False, 'bdb':False}):
+  """
+  'S' -> for Sum Pooling Convolution,
+  'G' -> for General Max Pooling,
+  'M' -> Max Pooling.
+  """
+  descriptors = []
+  for pool_type in types:
+    if pool_type == 'G':
+      pool = cgd_config[pool_type](general_max_pooling_p, general_max_pool_learnable)
+    elif pool_type == 'M':
+      pool = cgd_config[pool_type](1)
+    else:
+      pool = cgd_config[pool_type]()
+    head = RepresentationHead(2048, rep_dim, pool = pool, **head_kwargs)
+    descriptors.append(head)
+  return descriptors
